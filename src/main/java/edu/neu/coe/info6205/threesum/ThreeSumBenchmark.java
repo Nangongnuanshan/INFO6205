@@ -43,7 +43,7 @@ public class ThreeSumBenchmark {
 
 
 
-throw new RuntimeException("implementation missing");
+    throw new RuntimeException("implementation missing");
     }
 
     private final static TimeLogger[] timeLoggersCubic = {
