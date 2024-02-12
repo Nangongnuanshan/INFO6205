@@ -81,13 +81,13 @@ public class UF_HWQUPC implements UF {
     public int find(int p) {
         validate(p);
         int root = p;
-        // TO BE IMPLEMENTED 
-
-
-
-
-
-throw new RuntimeException("implementation missing");
+        // TO BE IMPLEMENTED
+        while (root != parent[root]) {
+            if (pathCompression) doPathCompression(root);
+            root = parent[root];
+        }
+        return root;
+        //throw new RuntimeException("implementation missing");
     }
 
     /**
@@ -115,8 +115,17 @@ throw new RuntimeException("implementation missing");
      */
     public void union(int p, int q) {
         // CONSIDER can we avoid doing find again?
-        mergeComponents(find(p), find(q));
-        count--;
+//        mergeComponents(find(p), find(q));
+//        count--;
+
+        //avoid doing find again
+        int rootP = find(p);
+        int rootQ = find(q);
+
+        if (rootP != rootQ) {
+            mergeComponents(rootP, rootQ);
+            count--;
+        }
     }
 
     @Override
@@ -175,12 +184,14 @@ throw new RuntimeException("implementation missing");
     private void mergeComponents(int i, int j) {
         // TO BE IMPLEMENTED  make shorter root point to taller one
 
-
-
-
-
-
-
+        if (height[i] < height[j]) {//connect the root node of the shorter tree to the root node of the higher tree.
+            parent[i] = j;
+        } else if (height[i] > height[j]) {
+            parent[j] = i;
+        } else {//if the heights are the same, choose any one as the root node and increase its height.
+            parent[j] = i;
+            height[i]++;
+        }
         // SKELETON
         // END SOLUTION
     }
@@ -190,7 +201,10 @@ throw new RuntimeException("implementation missing");
      */
     private void doPathCompression(int i) {
         // TO BE IMPLEMENTED  update parent to value of grandparent
-
+        while (i != parent[i]) {
+            parent[i] = parent[parent[i]];//connect a node directly to its grandparent node.
+            i = parent[i];
+        }
         // SKELETON
         // END SOLUTION
     }
