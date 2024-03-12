@@ -10,8 +10,12 @@ import edu.neu.coe.info6205.sort.elementary.BubbleSort;
 import edu.neu.coe.info6205.sort.elementary.InsertionSort;
 import edu.neu.coe.info6205.sort.elementary.RandomSort;
 import edu.neu.coe.info6205.sort.elementary.ShellSort;
+import edu.neu.coe.info6205.sort.elementary.HeapSort;
 import edu.neu.coe.info6205.sort.linearithmic.TimSort;
 import edu.neu.coe.info6205.sort.linearithmic.*;
+import edu.neu.coe.info6205.sort.SortWithHelper;
+import edu.neu.coe.info6205.sort.*;
+
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -37,10 +41,16 @@ public class SortBenchmark {
 
     public static void main(String[] args) throws IOException {
         Config config = Config.load(SortBenchmark.class);
+        //System.out.println("Config loaded: " + config.get("sortbenchmark", "version"));
         logger.info("SortBenchmark.main: " + config.get("SortBenchmark", "version") + " with word counts: " + Arrays.toString(args));
-        if (args.length == 0) logger.warn("No word counts specified on the command line");
+        if (args.length == 0){
+            logger.warn("No word counts specified on the command line");
+            args = new String[]{"100", "200", "400", "800", "1600","3200"};
+        }
+
         SortBenchmark benchmark = new SortBenchmark(config);
         benchmark.sortStrings(Arrays.stream(args).map(Integer::parseInt));
+
         if (benchmark.isConfigBenchmarkIntegerSorter("shellSort"))
             benchmark.sortIntegersByShellSort(config.getInt("shellsort", "n", 100000));
 //        benchmark.sortLocalDateTimes(config.getInt("benchmarkdatesorters", "n", 100000), config);
@@ -109,6 +119,11 @@ public class SortBenchmark {
         if (isConfigBenchmarkStringSorter("bubblesort"))
             runStringSortBenchmark(words, nWords, nRuns / 10, new BubbleSort<>(nWords, config), timeLoggersQuadratic);
 
+        if (isConfigBenchmarkStringSorter("heapsort")) {
+            Helper<String> helper = HelperFactory.create("Heapsort", nWords, config);
+            runStringSortBenchmark(words, nWords, nRuns, new HeapSort<>(helper), timeLoggersLinearithmic);
+        }
+
     }
 
     /**
@@ -121,19 +136,68 @@ public class SortBenchmark {
      * @param nRuns  the number of runs.
      */
     void benchmarkStringSortersInstrumented(String[] words, int nWords, int nRuns) {
-        logger.info("Testing with " + formatWhole(nRuns) + " runs of sorting " + formatWhole(nWords) + " words" + (config.isInstrumented() ? " and instrumented" : ""));
+        logger.info("**********");
+        logger.info("Instrumented Testing with " + formatWhole(nRuns) + " runs of sorting " + formatWhole(nWords) + " words" + (config.isInstrumented() ? " and instrumented" : ""));
         Random random = new Random();
 
         if (isConfigBenchmarkStringSorter("puresystemsort")) runPureSystemSortBenchmark(words, nWords, nRuns, random);
 
-        if (isConfigBenchmarkStringSorter("mergesort"))
-            runMergeSortBenchmark(words, nWords, nRuns, isConfigBenchmarkMergeSort("insurance"), isConfigBenchmarkMergeSort("nocopy"));
+        if (isConfigBenchmarkStringSorter("mergesort")){
+//            runMergeSortBenchmark(words, nWords, nRuns, isConfigBenchmarkMergeSort("insurance"), isConfigBenchmarkMergeSort("nocopy"));
+            Runtime runtime = Runtime.getRuntime();
+            long memoryBefore = runtime.totalMemory() - runtime.freeMemory();
+
+
+            Config configForMergeSort = config.copy(MergeSort.MERGESORT, MergeSort.INSURANCE, String.valueOf(isConfigBenchmarkMergeSort("insurance")))
+                    .copy(MergeSort.MERGESORT, MergeSort.NOCOPY, String.valueOf(isConfigBenchmarkMergeSort("nocopy")));
+            Helper<String> helper = new InstrumentedHelper<>("MergeSort", nWords, configForMergeSort);
+            SortWithHelper<String> mergeSort = new MergeSort<>(helper);
+            runStringSortBenchmark(words, nWords, nRuns, mergeSort, timeLoggersLinearithmic);
+
+            long memoryAfter = runtime.totalMemory() - runtime.freeMemory();
+            long memoryUsed = memoryAfter - memoryBefore;
+            System.out.println("Memory used: " + memoryUsed + " bytes");
+
+            if (helper instanceof InstrumentedHelper) {
+                InstrumentedHelper<String> instrumentedHelper = (InstrumentedHelper<String>) helper;
+
+                final int compares = (int) instrumentedHelper.getStatPack().getStatistics(InstrumentedHelper.COMPARES).mean();
+                final int fixes = (int) instrumentedHelper.getStatPack().getStatistics(InstrumentedHelper.FIXES).mean();
+                final int swaps = (int) instrumentedHelper.getStatPack().getStatistics(InstrumentedHelper.SWAPS).mean();
+                final int copies = (int) instrumentedHelper.getStatPack().getStatistics(InstrumentedHelper.COPIES).mean();
+
+                System.out.println("Compares: " + compares + ", Fixes: " + fixes + ", Swaps: " + swaps + ", Copies: " + copies);
+            }
+
+        }
 
         if (isConfigBenchmarkStringSorter("quicksort3way"))
             runStringSortBenchmark(words, nWords, nRuns, new QuickSort_3way<>(nWords, config), timeLoggersLinearithmic);
 
-        if (isConfigBenchmarkStringSorter("quicksortDualPivot"))
-            runStringSortBenchmark(words, nWords, nRuns, new QuickSort_DualPivot<>(nWords, config), timeLoggersLinearithmic);
+        if (isConfigBenchmarkStringSorter("quicksortDualPivot")){
+            //runStringSortBenchmark(words, nWords, nRuns, new QuickSort_DualPivot<>(nWords, config), timeLoggersLinearithmic);
+            Runtime runtime = Runtime.getRuntime();
+            long memoryBefore = runtime.totalMemory() - runtime.freeMemory();
+
+            Helper<String> helper = new InstrumentedHelper<>("QuickSortDualPivot", nWords, config);
+            SortWithHelper<String> quickSortDualPivot = new QuickSort_DualPivot<>(helper);
+            runStringSortBenchmark(words, nWords, nRuns, quickSortDualPivot, timeLoggersLinearithmic);
+
+            long memoryAfter = runtime.totalMemory() - runtime.freeMemory();
+            long memoryUsed = memoryAfter - memoryBefore;
+            System.out.println("Memory used: " + memoryUsed + " bytes");
+
+            if (helper instanceof InstrumentedHelper) {
+                InstrumentedHelper<String> instrumentedHelper = (InstrumentedHelper<String>) helper;
+
+                final int compares = (int) instrumentedHelper.getStatPack().getStatistics(InstrumentedHelper.COMPARES).mean();
+                final int fixes = (int) instrumentedHelper.getStatPack().getStatistics(InstrumentedHelper.FIXES).mean();
+                final int swaps = (int) instrumentedHelper.getStatPack().getStatistics(InstrumentedHelper.SWAPS).mean();
+                final int copies = (int) instrumentedHelper.getStatPack().getStatistics(InstrumentedHelper.COPIES).mean();
+
+                System.out.println("Compares: " + compares + ", Fixes: " + fixes + ", Swaps: " + swaps + ", Copies: " + copies);
+            }
+        }
 
         if (isConfigBenchmarkStringSorter("quicksort"))
             runStringSortBenchmark(words, nWords, nRuns, new QuickSort_Basic<>(nWords, config), timeLoggersLinearithmic);
@@ -151,6 +215,30 @@ public class SortBenchmark {
         // NOTE: this is very slow of course, so recommendation is not to enable this option.
         if (isConfigBenchmarkStringSorter("bubblesort"))
             runStringSortBenchmark(words, nWords, nRuns / 10, new BubbleSort<>(nWords, config), timeLoggersQuadratic);
+
+        if (isConfigBenchmarkStringSorter("heapsort")) {
+            Runtime runtime = Runtime.getRuntime();
+            long memoryBefore = runtime.totalMemory() - runtime.freeMemory();
+
+            Helper<String> helper = HelperFactory.create("Heapsort", nWords, config);
+            runStringSortBenchmark(words, nWords, nRuns, new HeapSort<>(helper), timeLoggersLinearithmic);
+
+            long memoryAfter = runtime.totalMemory() - runtime.freeMemory();
+            long memoryUsed = memoryAfter - memoryBefore;
+            System.out.println("Memory used: " + memoryUsed + " bytes");
+
+
+            if (helper instanceof InstrumentedHelper) {
+                InstrumentedHelper<String> instrumentedHelper = (InstrumentedHelper<String>) helper;
+
+                final int compares = (int) instrumentedHelper.getStatPack().getStatistics(InstrumentedHelper.COMPARES).mean();
+                final int fixes = (int) instrumentedHelper.getStatPack().getStatistics(InstrumentedHelper.FIXES).mean();
+                final int swaps = (int) instrumentedHelper.getStatPack().getStatistics(InstrumentedHelper.SWAPS).mean();
+                final int copies = (int) instrumentedHelper.getStatPack().getStatistics(InstrumentedHelper.COPIES).mean();
+
+                System.out.println("Compares: " + compares + ", Fixes: " + fixes + ", Swaps: " + swaps + ", Copies: " + copies);
+            }
+        }
     }
 
     private static void runPureSystemSortBenchmark(String[] words, int nWords, int nRuns, Random random) {

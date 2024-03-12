@@ -64,24 +64,27 @@ public class MergeSort<X extends Comparable<X>> extends SortWithHelper<X> {
             return;
         }
 
+        if (insurance && isSorted(a, from, to, helper)) return;
+
         // TO BE IMPLEMENTED  : implement merge sort with insurance and no-copy optimizations
+        int mid = from + (to - from) / 2;
+        if (noCopy) {
+            // Sort aux based on a's current state
+            sort(aux, a, from, mid);
+            sort(aux, a, mid, to);
+            // Merge without copying: auxiliary roles of a and aux are switched
+            merge(aux, a, from, mid, to);
+            //if (!insurance) System.arraycopy(aux, from, a, from, to - from);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-throw new RuntimeException("implementation missing");
+        } else {
+            // Normal merge sort: sort halves of a, merge into aux, then copy back to a
+            sort(a, aux, from, mid);
+            sort(a, aux, mid, to);
+            merge(a, aux, from, mid, to);
+            // Copy back if not using the no-copy optimization
+            System.arraycopy(aux, from, a, from, to - from);
+        }
+//throw new RuntimeException("implementation missing");
     }
 
     // CONSIDER combine with MergeSortBasic perhaps.
@@ -107,6 +110,15 @@ throw new RuntimeException("implementation missing");
         if (config.getBoolean(MERGESORT, INSURANCE)) stringBuilder.append(" with insurance comparison");
         if (config.getBoolean(MERGESORT, NOCOPY)) stringBuilder.append(" with no copy");
         return stringBuilder.toString();
+    }
+
+    private boolean isSorted(X[] a, int from, int to, Helper<X> helper) {
+        for (int i = from + 1; i < to; i++) {
+            if (helper.less(a[i], a[i - 1])) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private final InsertionSort<X> insertionSort;
